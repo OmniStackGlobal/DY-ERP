@@ -1,0 +1,45 @@
+# 推送到 main 且 supabase/migrations 有变化时，自动把迁移应用到 Supabase。
+# 需要在 GitHub 仓库 Settings → Secrets and variables → Actions 里配置：
+#   SUPABASE_ACCESS_TOKEN  —— Supabase 账号的 Personal Access Token（supabase.com/dashboard/account/tokens）
+#   SUPABASE_DB_PASSWORD   —— 项目数据库密码
+#   SUPABASE_PROJECT_REF   —— 项目 ref（URL 里 https://<ref>.supabase.co 的那一段）
+# 没配置时这个工作流会直接跳过，不会报错。
+name: Apply database migrations
+on:
+  push:
+    branches: [main]
+    paths: ["supabase/migrations/**"]
+  workflow_dispatch:
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check secrets
+        id: check
+        env:
+          TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          PW: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          if [ -z "$TOKEN" ] || [ -z "$REF" ] || [ -z "$PW" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"; echo "Secrets not configured, skipping."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: supabase/setup-cli@v1
+        if: steps.check.outputs.configured == 'true'
+        with:
+          version: latest
+      - name: Link project
+        if: steps.check.outputs.configured == 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
+      - name: Push migrations
+        if: steps.check.outputs.configured == 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: supabase db push

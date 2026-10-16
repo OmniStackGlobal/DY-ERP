@@ -1,0 +1,5 @@
+# Supabase CLI 最小配置：只用于 `supabase link` / `supabase db push`。
+project_id = "dy-erp"
+
+[db]
+major_version = 17
